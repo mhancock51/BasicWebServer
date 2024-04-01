@@ -7,4 +7,8 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\BasicWebServer.DataLayer\BasicWebServer.DataLayer.csproj" />
+  </ItemGroup>
+
 </Project>

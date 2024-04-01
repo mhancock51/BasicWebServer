@@ -1,12 +1,16 @@
 ﻿using BasicWebServer;
+using BasicWebServer.DataLayer;
+using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 using System.Text;
+using System.Text.Encodings.Web;
 
 class Program
 {
-    const string htmlRouteDirectory = "C:\\Users\\matth\\source\\repos\\BasicWebServer\\website\\html";
+    const string HTML_ROUTE_DIRECTORY = "C:\\Users\\matth\\source\\repos\\BasicWebServer\\website\\html";
+    const string ROUTE_DIRECTORY = "C:\\Users\\matth\\source\\repos\\BasicWebServer\\website";
 
     const string errorPageHtml = "<html><body><h1>404 Not Found</h1></body></html>";
     const string indexPageHtml = "<html><body><h1>Hello world</h1><p>This is the index page</p></body></html>";
@@ -21,7 +25,7 @@ class Program
         // Define the IP Address and port to listen on.
         // IPAddress.Loopback is localhost. You might need to use a different IP address if connecting from other devices.
         IPAddress ipAddress = IPAddress.Loopback;
-        int port = 8080; // Port to listen on.
+        int port = 3000; // Port to listen on.
 
         // Create and start TcpListener.
         TcpListener listener = new TcpListener(ipAddress, port);
@@ -40,23 +44,16 @@ class Program
                 {
                     Console.WriteLine($"Connected client");
 
-                    // get request lines
-                    // Read all request lines into a List<string>
-                    List<string> requestLines = new List<string>();
-                    string line;
-                    while ((line = reader.ReadLine()) != null && line != "")
-                    {
-                        requestLines.Add(line);
-                    }
+                    var requestLines = ReadRequestLines(reader);
+
+                    HttpRequest request = HttpRequest.ReadRequestIntoClass(requestLines.ToArray());
+                    
                     // process and respond
+                    if (request != null)
+                    {
+                        ProcessRequestAndRespond(request, routes, stream);
 
-
-                    string response = ProcessRequestAndRespond(requestLines, routes);
-                                       
-                    // convert response to bytes
-                    byte[] responseBytes = Encoding.UTF8.GetBytes(response);
-                    // write response to stream
-                    stream.Write(responseBytes, 0, responseBytes.Length);
+                    }
                     // close connetion
                     client.Close();
                 }
@@ -73,67 +70,67 @@ class Program
 
         
     }
-    static string GetHTMLByRoute(Route[] routes, string path)
-    {
-        /*switch(route)
-        {
-            case "/":
-                return indexPageHtml;
-            case "/info":
-                return infoPageHtml;
-            default:
-                return errorPageHtml;
-        }*/
-        Route route = routes.FirstOrDefault(i => i.path == path);
-        if (route == null)
-        {
-            return ReadHTMLDoc("errorpage.html");
-        }
-        else
-        {
-            return ReadHTMLDoc(route.relativeFilePath);
-        }
-    }
-
-    static string ProcessRequestAndRespond(List<string> requestLines, Route[] routes)
+    static byte[] ProcessRoute(Route[] routes, string path, List<string> accepts)
     {
         string html;
-        string response;
-        if (requestLines.Count == 0)
-        {
-            html = "<html><body><h1>400 Bad Request</h1></body></html>";
+        Route route = routes.FirstOrDefault(i => i.path == path);
+        // if route can't be found, return error page with 400 status code
+        string filePath = route != null ? route.relativeFilePath : "errorpage.html";
+        int statusCode = route != null ? 200 : 400;
+        html = ReadFileToString(filePath);
+        return BuildResponse(html, statusCode, accepts[0]);
+    }
 
-            response = "HTTP/1.1 200 OK\r\n" +
-                                      "Content-Type: text/html; charset=UTF-8\r\n" +
-                                      $"Content-Length: {html.Length}\r\n" +
-                                      "\r\n" +
-                                      html;
-            return response;
+    static byte[] ProcessRequestAndRespond(HttpRequest request, Route[] routes, NetworkStream stream)
+    {
+        // check if request is for a file
+        if (request.Path == "/favicon.ico")
+        {
+            ImageFileResponse("favicon.ico", stream);
         }
 
-        // get request type and path
-        
-        Console.WriteLine($"Request: {requestLines[0]}");
-        // Extract the path from the request line
-        string[] requestParts = requestLines[0]?.Split(' ') ?? new string[0];
-        string path = requestParts.Length > 1 ? requestParts[1] : "/";
-        // Respond with HTML.
-        html = GetHTMLByRoute(routes, path);
+        // check if file ends with .css
+        if (request.Path.EndsWith(".css"))
+        {
+            FileResponse(request.Path, stream);
+        }
 
-        response = "HTTP/1.1 200 OK\r\n" +
-                                      "Content-Type: text/html; charset=UTF-8\r\n" +
-                                      $"Content-Length: {html.Length}\r\n" +
-                                      "\r\n" +
-                                      html;
+        // Respond with HTML.
+        byte[] response = ProcessRoute(routes, request.Path, request.Accept);
+        stream.Write(response, 0, response.Length);
         return response;
     }
 
-    static string ReadHTMLDoc(string filePath)
+    static byte[] BuildResponse(string html, int httpCode, string contentType)
     {
-        string htmlString = "";
+        string response = $"HTTP/1.1 {httpCode} OK\r\n" +
+                                      $"Content-Type: {contentType}; charset=UTF-8\r\n" +
+                                      $"Content-Length: {html.Length}\r\n" +
+                                      "\r\n" +
+                                      html;
+        return Encoding.UTF8.GetBytes(response);
+    }
+
+    static byte[] ImageResponse(byte[] imageData, string imageType)
+    {
+        string base64ImageData = Convert.ToBase64String(imageData);
+        string response = $"HTTP/1.1 200 OK\r\n" +
+            $"Content-Type: {imageType}\r\n" +
+            $"Content-Length: {imageData.Length}\r\n" +
+            $"Accept-Ranges: bytes\r\n" +
+            $"Cache-Control: max-age=604800\r\n" +
+            $"Last-Modified: {DateTime.UtcNow.ToString("R")}\r\n" +
+            base64ImageData;
+            
+        return Encoding.UTF8.GetBytes(response);
+    }
+
+    static string ReadFileToString(string filePath)
+    {
+        string fileLine = "";
         try
         {
-            string path = Path.Join(htmlRouteDirectory, filePath);
+            string path = Path.Join(HTML_ROUTE_DIRECTORY, filePath);
             //Pass the file path and file name to the StreamReader constructor
             StreamReader sr = new StreamReader(path);
             //Read the first line of text
@@ -142,7 +139,7 @@ class Program
             while (line != null)
             {
                 //write the line to console window
-                htmlString += line;
+                fileLine += line;
                 //Read the next line
                 line = sr.ReadLine();
             }
@@ -157,7 +154,63 @@ class Program
         {
             Console.WriteLine("Executing finally block.");
         }
-        return htmlString;
+        return fileLine;
 
     }
-}
+
+    static byte[] ReadFileIntoByteArray(string imagePath)
+    {
+        // Specifying a file 
+        string path = Path.Join(ROUTE_DIRECTORY, imagePath);
+
+        // Calling the ReadAllBytes() function 
+        byte[] byteArray = File.ReadAllBytes(path);
+        return byteArray;
+    }
+
+    static List<string> ReadRequestLines(StreamReader reader)
+    {
+        // get request lines
+        // Read all request lines into a List<string>
+        Console.WriteLine("Reading request lines");
+        Console.WriteLine("==============================");
+        List<string> requestLines = new List<string>();
+        string line;
+        while ((line = reader.ReadLine()) != null && line != "")
+        {
+            Console.WriteLine($"{line}");
+            requestLines.Add(line);
+        }
+        Console.WriteLine("END OF REQUEST LINES...");
+        Console.WriteLine("==============================");
+        return requestLines;
+    }
+
+    public static void ImageFileResponse(string filePath, NetworkStream stream)
+    {
+        byte[] imageData = ReadFileIntoByteArray(filePath);
+        string header = "HTTP/1.1 200 OK\r\n" +
+                                "Content-Type: image/jpeg\r\n" +
+                                $"Content-Length: {imageData.Length}\r\n" +
+                                "Connection: close\r\n\r\n";
+        byte[] headerData = Encoding.ASCII.GetBytes(header);
+        stream.Write(headerData, 0, headerData.Length);
+        stream.Write(imageData, 0, imageData.Length);
+
+        stream.Flush();
+
+    }
+
+    public static void FileResponse(string filePath, NetworkStream stream)
+    {
+        byte[] fileData = ReadFileIntoByteArray(filePath);
+        string header = "HTTP/1.1 200 OK\r\n" +
+                                "Content-Type: text/css\r\n" +
+                                $"Content-Length: {fileData.Length}\r\n" +
+                                "Connection: close\r\n\r\n";
+        byte[] headerData = Encoding.ASCII.GetBytes(header);
+        stream.Write(headerData, 0, headerData.Length);
+        stream.Write(fileData, 0, fileData.Length);
+        stream.Flush();
+    }
+} 
