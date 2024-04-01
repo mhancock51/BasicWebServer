@@ -1,31 +1,26 @@
 ﻿using BasicWebServer;
 using BasicWebServer.DataLayer;
+using System;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Encodings.Web;
+using System.Text.Json;
 
 class Program
 {
     const string HTML_ROUTE_DIRECTORY = "C:\\Users\\matth\\source\\repos\\BasicWebServer\\website\\html";
     const string ROUTE_DIRECTORY = "C:\\Users\\matth\\source\\repos\\BasicWebServer\\website";
 
-    const string errorPageHtml = "<html><body><h1>404 Not Found</h1></body></html>";
-    const string indexPageHtml = "<html><body><h1>Hello world</h1><p>This is the index page</p></body></html>";
-    const string infoPageHtml = "<html><body><h1>Info Page</h1><p>This page will contain some info</p></body></html>";
-
     static void Main(string[] args)
     {
-        Route[] routes = {
-            new Route("/", "index.html"),
-            new Route("/info", "infopage.html"),
-        };
+        Config config = ReadConfigFromFile();
         // Define the IP Address and port to listen on.
         // IPAddress.Loopback is localhost. You might need to use a different IP address if connecting from other devices.
         IPAddress ipAddress = IPAddress.Loopback;
-        int port = 3000; // Port to listen on.
+        int port = config.Port;
 
         // Create and start TcpListener.
         TcpListener listener = new TcpListener(ipAddress, port);
@@ -51,7 +46,7 @@ class Program
                     // process and respond
                     if (request != null)
                     {
-                        ProcessRequestAndRespond(request, routes, stream);
+                        ProcessRequestAndRespond(request, config, stream);
 
                     }
                     // close connetion
@@ -81,12 +76,12 @@ class Program
         return BuildResponse(html, statusCode, accepts[0]);
     }
 
-    static byte[] ProcessRequestAndRespond(HttpRequest request, Route[] routes, NetworkStream stream)
+    static byte[] ProcessRequestAndRespond(HttpRequest request, Config config, NetworkStream stream)
     {
         // check if request is for a file
         if (request.Path == "/favicon.ico")
         {
-            ImageFileResponse("favicon.ico", stream);
+            ImageFileResponse(config.FaviconPath, stream);
         }
 
         // check if file ends with .css
@@ -96,7 +91,7 @@ class Program
         }
 
         // Respond with HTML.
-        byte[] response = ProcessRoute(routes, request.Path, request.Accept);
+        byte[] response = ProcessRoute(config.Routes, request.Path, request.Accept);
         stream.Write(response, 0, response.Length);
         return response;
     }
@@ -217,5 +212,18 @@ class Program
         stream.Write(headerData, 0, headerData.Length);
         stream.Write(fileData, 0, fileData.Length);
         stream.Flush();
+    }
+
+    public static Config ReadConfigFromFile()
+    {
+        try
+        {
+            string jsonString = File.ReadAllText("C:\\Users\\matth\\source\\repos\\BasicWebServer\\website\\config.json");
+            return JsonSerializer.Deserialize<Config>(jsonString);
+        }
+        catch (Exception ex)
+        {
+            throw new Exception($"Error occurred loading config from json: {ex.Message}");
+        }
     }
 } 

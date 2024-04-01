@@ -1,0 +1,14 @@
+﻿{
+  "port": 4500,
+  "favicon": "/favicon.ico",
+  "routes": [
+    {
+      "path": "/",
+      "file": "index.html"
+    },
+    {
+      "path": "/info",
+      "file": "infopage.html"
+    }
+  ]
+}
