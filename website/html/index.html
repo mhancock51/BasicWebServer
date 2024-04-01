@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="styles.css">
+    <script src="script.js"></script>
     <title>Homepage</title>
 </head>
 <body>
@@ -19,14 +20,16 @@
         </ul>
     </nav>
     <main>
-        <section>
+        <article>
             <h2>About Us</h2>
             <p>We are a team dedicated to providing the best services to our clients. Learn more about us and what we do.</p>
-        </section>
-        <section>
+        </article>
+        <article>
             <h2>Our Services</h2>
             <p>Explore our wide range of services and find out how we can help you achieve your goals.</p>
-        </section>
+            <button onclick="LogHelloWorld()">Click me</button>
+            <p id="count-display">Button clicked 0 times</p>
+        </article>
     </main>
     <footer>
         <p>Contact us at <a href="mailto:info@ourwebsite.com" style="color: #ffffff;">info@ourwebsite.com</a>.</p>

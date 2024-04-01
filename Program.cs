@@ -90,7 +90,7 @@ class Program
         }
 
         // check if file ends with .css
-        if (request.Path.EndsWith(".css"))
+        if (request.Path.EndsWith(".css") || request.Path.EndsWith(".js"))
         {
             FileResponse(request.Path, stream);
         }
@@ -203,9 +203,14 @@ class Program
 
     public static void FileResponse(string filePath, NetworkStream stream)
     {
+        string fileExtension = filePath.Split(".").LastOrDefault();
+        if (fileExtension == null)
+        {
+            throw new Exception("Couldn't parse file extension from file path");
+        }
         byte[] fileData = ReadFileIntoByteArray(filePath);
         string header = "HTTP/1.1 200 OK\r\n" +
-                                "Content-Type: text/css\r\n" +
+                                $"Content-Type: text/{fileExtension}\r\n" +
                                 $"Content-Length: {fileData.Length}\r\n" +
                                 "Connection: close\r\n\r\n";
         byte[] headerData = Encoding.ASCII.GetBytes(header);
